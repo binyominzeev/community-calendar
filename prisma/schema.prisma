@@ -1,0 +1,64 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider        = "prisma-client"
+  output          = "../app/generated/prisma"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Person {
+  id          Int         @id @default(autoincrement())
+  displayName String
+  hebrewName  String?
+  notes       String?
+  events      Event[]
+  personTags  PersonTag[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+model Tag {
+  id         Int         @id @default(autoincrement())
+  name       String      @unique
+  personTags PersonTag[]
+}
+
+model PersonTag {
+  personId Int
+  tagId    Int
+  person   Person @relation(fields: [personId], references: [id], onDelete: Cascade)
+  tag      Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([personId, tagId])
+}
+
+model EventType {
+  id     Int     @id @default(autoincrement())
+  name   String  @unique
+  events Event[]
+}
+
+model Event {
+  id          Int       @id @default(autoincrement())
+  personId    Int
+  person      Person    @relation(fields: [personId], references: [id], onDelete: Cascade)
+  eventTypeId Int
+  eventType   EventType @relation(fields: [eventTypeId], references: [id])
+  hebrewDay   Int
+  hebrewMonth Int
+  remarks     String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+}
