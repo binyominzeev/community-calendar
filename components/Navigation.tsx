@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { signOut, useSession } from "next-auth/react";
 
 const NAV_ITEMS = [
   { href: "/people", label: "People" },
@@ -12,7 +13,9 @@ const NAV_ITEMS = [
 
 export default function Navigation() {
   const pathname = usePathname();
+  const { data: session } = useSession();
 
+  if (pathname.startsWith("/login")) return null;
   return (
     <nav
       style={{
@@ -58,6 +61,14 @@ export default function Navigation() {
           </Link>
         );
       })}
+      {session?.user && (
+        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "12px", fontSize: "13px" }}>
+          <span style={{ color: "#6b7280" }}>{session.user.name ?? session.user.email}</span>
+          <button className="btn btn-secondary" onClick={() => signOut({ callbackUrl: "/login" })}>
+            Sign out
+          </button>
+        </div>
+      )}
     </nav>
   );
 }

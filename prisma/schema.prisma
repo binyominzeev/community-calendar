@@ -38,9 +38,10 @@ model PersonTag {
 }
 
 model EventType {
-  id     Int     @id @default(autoincrement())
-  name   String  @unique
-  events Event[]
+  id         Int     @id @default(autoincrement())
+  name       String  @unique
+  isYahrzeit Boolean @default(false)
+  events     Event[]
 }
 
 model Event {
@@ -49,16 +50,59 @@ model Event {
   person      Person    @relation(fields: [personId], references: [id], onDelete: Cascade)
   eventTypeId Int
   eventType   EventType @relation(fields: [eventTypeId], references: [id])
+  yahrzeitRelationOptionId Int?
+  yahrzeitRelationOption   YahrzeitRelationOption? @relation(fields: [yahrzeitRelationOptionId], references: [id])
   hebrewDay   Int
   hebrewMonth Int
+  civilDate   DateTime?
+  eventYear   Int?
   remarks     String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 }
 
+model YahrzeitRelationOption {
+  id     Int     @id @default(autoincrement())
+  name   String  @unique
+  events Event[]
+}
+
 model User {
-  id           Int      @id @default(autoincrement())
-  email        String   @unique
-  passwordHash String
-  createdAt    DateTime @default(now())
+  id            Int            @id @default(autoincrement())
+  email         String         @unique
+  oidcSub       String?        @unique
+  createdAt     DateTime       @default(now())
+  googleAccount GoogleAccount?
+}
+
+model GoogleAccount {
+  id                    Int              @id @default(autoincrement())
+  userId                Int              @unique
+  user                  User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  googleEmail           String?
+  encryptedRefreshToken String
+  encryptedAccessToken  String?
+  accessTokenExpiresAt  DateTime?
+  calendarId            String?
+  syncInProgress        Boolean          @default(false)
+  syncStartedAt         DateTime?
+  syncTotal             Int              @default(0)
+  syncDone              Int              @default(0)
+  syncCurrent           String?
+  lastSyncAt            DateTime?
+  lastSyncError         String?
+  syncItems             GoogleSyncItem[]
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+}
+
+model GoogleSyncItem {
+  id              Int           @id @default(autoincrement())
+  googleAccountId Int
+  googleAccount   GoogleAccount @relation(fields: [googleAccountId], references: [id], onDelete: Cascade)
+  sourceKey       String
+  googleEventId   String
+  contentHash     String
+
+  @@unique([googleAccountId, sourceKey])
 }

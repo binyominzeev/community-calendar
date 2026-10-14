@@ -1,0 +1,2 @@
+ALTER TABLE "Event" ADD COLUMN "civilDate" DATETIME;
+ALTER TABLE "Event" ADD COLUMN "eventYear" INTEGER;

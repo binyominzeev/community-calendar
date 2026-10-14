@@ -1,4 +1,15 @@
-import { HDate, HebrewCalendar, months, flags, ParshaEvent } from "@hebcal/core";
+import { HDate, flags } from "@hebcal/core";
+
+// The single definition of which Hebrew-calendar days are shown in the UI, exports and Google sync.
+export const SPECIAL_FLAGS =
+  flags.CHAG |
+  flags.CHOL_HAMOED |
+  flags.MINOR_HOLIDAY |
+  flags.MINOR_FAST |
+  flags.MAJOR_FAST |
+  flags.ROSH_CHODESH |
+  flags.SPECIAL_SHABBAT |
+  flags.PARSHA_HASHAVUA;
 
 export const HEBREW_MONTHS: Record<number, string> = {
   1: "Nisan",
@@ -64,6 +75,7 @@ export interface HebrewEvent {
   personId: number;
   personName: string;
   eventType: string;
+  isYahrzeit: boolean;
   eventId: number;
   remarks?: string | null;
 }
@@ -74,7 +86,7 @@ export interface EventRecord {
   hebrewDay: number;
   hebrewMonth: number;
   remarks?: string | null;
-  eventType: { name: string };
+  eventType: { name: string; isYahrzeit: boolean };
   person: {
     id: number;
     displayName: string;
@@ -116,166 +128,13 @@ export function resolveEventsForYear(
       personId: ev.personId,
       personName: ev.person.displayName,
       eventType: ev.eventType.name,
+      isYahrzeit: ev.eventType.isYahrzeit,
       eventId: ev.id,
       remarks: ev.remarks,
     });
   }
 
   return result.sort((a, b) => a.gregDate.getTime() - b.gregDate.getTime());
-}
-
-export interface CalendarDay {
-  date: Date;
-  hebrewDate: { day: number; month: number; year: number };
-  hebrewLabel: string;
-  isRoshChodesh: boolean;
-  parasha?: string;
-  holidays: string[];
-  events: HebrewEvent[];
-}
-
-/**
- * Generate calendar data for a Gregorian month,
- * enriched with Hebrew dates and events.
- */
-export function buildMonthCalendar(
-  gregYear: number,
-  gregMonth: number, // 1-based
-  events: HebrewEvent[]
-): CalendarDay[] {
-  const daysInMonth = new Date(gregYear, gregMonth, 0).getDate();
-  const days: CalendarDay[] = [];
-
-  // Generate hebcal events for this Gregorian month
-  const startDate = new Date(gregYear, gregMonth - 1, 1);
-  const endDate = new Date(gregYear, gregMonth - 1, daysInMonth);
-
-  const calEvents = HebrewCalendar.calendar({
-    start: new HDate(startDate),
-    end: new HDate(endDate),
-    sedrot: true,
-    omer: false,
-    shabbatMevarchim: false,
-    il: false,
-  });
-
-  for (let d = 1; d <= daysInMonth; d++) {
-    const date = new Date(gregYear, gregMonth - 1, d);
-    const hd = new HDate(date);
-    const hebrewDate = {
-      day: hd.getDate(),
-      month: hd.getMonth(),
-      year: hd.getFullYear(),
-    };
-
-    const hebrewLabel = `${hd.getDate()} ${hd.getMonthName()}`;
-    const isRoshChodesh = hd.getDate() === 1 || hd.getDate() === 30;
-
-    // Find matching hebcal events for this day
-    const dayEvents = calEvents.filter((e) => {
-      const ed = e.getDate().greg();
-      return (
-        ed.getFullYear() === date.getFullYear() &&
-        ed.getMonth() === date.getMonth() &&
-        ed.getDate() === date.getDate()
-      );
-    });
-
-    const parasha = dayEvents
-      .filter((e) => e.getFlags() & flags.PARSHA_HASHAVUA)
-      .map((e) => e.renderBrief())[0];
-
-    const holidays = dayEvents
-      .filter(
-        (e) =>
-          e.getFlags() & flags.CHAG ||
-          e.getFlags() & flags.MINOR_FAST ||
-          e.getFlags() & flags.MAJOR_FAST ||
-          e.getFlags() & flags.ROSH_CHODESH
-      )
-      .map((e) => e.renderBrief());
-
-    // Find events for this day
-    const dayUserEvents = events.filter((ev) => {
-      const g = ev.gregDate;
-      return (
-        g.getFullYear() === date.getFullYear() &&
-        g.getMonth() === date.getMonth() &&
-        g.getDate() === date.getDate()
-      );
-    });
-
-    days.push({
-      date,
-      hebrewDate,
-      hebrewLabel,
-      isRoshChodesh,
-      parasha,
-      holidays,
-      events: dayUserEvents,
-    });
-  }
-
-  return days;
-}
-
-export function buildWeekCalendar(
-  weekStart: Date,
-  events: HebrewEvent[]
-): CalendarDay[] {
-  const days: CalendarDay[] = [];
-  for (let i = 0; i < 7; i++) {
-    const date = new Date(weekStart);
-    date.setDate(date.getDate() + i);
-
-    const hd = new HDate(date);
-    const hebrewDate = {
-      day: hd.getDate(),
-      month: hd.getMonth(),
-      year: hd.getFullYear(),
-    };
-
-    const calEvents = HebrewCalendar.calendar({
-      start: hd,
-      end: hd,
-      sedrot: true,
-      omer: false,
-    });
-
-    const parasha = calEvents
-      .filter((e) => e.getFlags() & flags.PARSHA_HASHAVUA)
-      .map((e) => e.renderBrief())[0];
-
-    const holidays = calEvents
-      .filter(
-        (e) =>
-          e.getFlags() & flags.CHAG ||
-          e.getFlags() & flags.MINOR_FAST ||
-          e.getFlags() & flags.MAJOR_FAST ||
-          e.getFlags() & flags.ROSH_CHODESH
-      )
-      .map((e) => e.renderBrief());
-
-    const dayUserEvents = events.filter((ev) => {
-      const g = ev.gregDate;
-      return (
-        g.getFullYear() === date.getFullYear() &&
-        g.getMonth() === date.getMonth() &&
-        g.getDate() === date.getDate()
-      );
-    });
-
-    days.push({
-      date,
-      hebrewDate,
-      hebrewLabel: `${hd.getDate()} ${hd.getMonthName()}`,
-      isRoshChodesh: hd.getDate() === 1 || hd.getDate() === 30,
-      parasha,
-      holidays,
-      events: dayUserEvents,
-    });
-  }
-  return days;
 }
 
 export function formatHebrewDate(
@@ -289,6 +148,15 @@ export function formatHebrewDate(
 /** Return the current Hebrew year */
 export function currentHebrewYear(): number {
   return new HDate(new Date()).getFullYear();
+}
+
+/** First and last Gregorian day of a Hebrew year (1 Tishrei to 29 Elul). */
+export function hebrewYearRange(hebrewYear: number): { start: Date; end: Date } {
+  const at = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12);
+  return {
+    start: at(new HDate(1, 7, hebrewYear).greg()),
+    end: at(new HDate(29, 6, hebrewYear).greg()),
+  };
 }
 
 /** Parse a Hebrew date string like "7 Tishrei" → {day, month} */

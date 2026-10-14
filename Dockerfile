@@ -1,40 +1,36 @@
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 
 WORKDIR /app
 
-# Install dependencies
+# Toolchain fallback in case better-sqlite3 has no prebuilt binary for musl
+RUN apk add --no-cache python3 make g++
+
 COPY package.json package-lock.json ./
 RUN npm ci
 
-# Copy source
 COPY . .
 
-# Generate Prisma client
 RUN npx prisma generate
-
-# Build
 RUN npm run build
 
-# Production image
-FROM node:20-alpine AS runner
+# Single-file DB setup script; better-sqlite3 stays external (native addon)
+RUN npx esbuild prisma/setup.ts --bundle --platform=node --external:better-sqlite3 --outfile=setup.js
+
+FROM node:22-alpine AS runner
 
 WORKDIR /app
 
 ENV NODE_ENV=production
+ENV HOSTNAME=0.0.0.0
+ENV PORT=3000
 
-# Copy built files
-COPY --from=builder /app/.next ./.next
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/package.json ./package.json
-COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/app/generated ./app/generated
-COPY --from=builder /app/lib ./lib
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
-
-# Create data directory for SQLite
-RUN mkdir -p /app/data
+COPY --from=builder /app/prisma/migrations ./prisma/migrations
+COPY --from=builder /app/setup.js ./setup.js
 
 EXPOSE 3000
 
-# On startup: setup DB (apply migrations + seed if new) then start
-CMD ["sh", "-c", "node -e \"require('tsx').install()\" 2>/dev/null; npx tsx prisma/setup.ts && npm start"]
+# Apply migrations and seed, then start the standalone server
+CMD ["sh", "-c", "node setup.js && node server.js"]

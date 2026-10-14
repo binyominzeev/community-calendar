@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { HDate } from "@hebcal/core";
 
 interface Tag {
   id: number;
@@ -10,15 +11,25 @@ interface Tag {
 interface EventType {
   id: number;
   name: string;
+  isYahrzeit: boolean;
+}
+
+interface YahrzeitRelationOption {
+  id: number;
+  name: string;
 }
 
 interface EventRecord {
   id: number;
   personId: number;
   eventTypeId: number;
-  eventType: { id: number; name: string };
+  eventType: { id: number; name: string; isYahrzeit: boolean };
+  yahrzeitRelationOptionId: number | null;
+  yahrzeitRelationOption: YahrzeitRelationOption | null;
   hebrewDay: number;
   hebrewMonth: number;
+  civilDate: string | null;
+  eventYear: number | null;
   remarks: string | null;
 }
 
@@ -41,25 +52,115 @@ function HebrewDateDisplay({ day, month }: { day: number; month: number }) {
   return <span>{day} {HEBREW_MONTHS[month] ?? month}</span>;
 }
 
+function toDateInputValue(dateStr: string | null | undefined): string {
+  if (!dateStr) return "";
+  const date = new Date(dateStr);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toISOString().slice(0, 10);
+}
+
+function parseCivilDateToHebrew(civilDate: string): { day: number; month: number } | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(civilDate);
+  if (!match) return null;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(year, month - 1, day, 12, 0, 0, 0);
+
+  if (
+    Number.isNaN(date.getTime()) ||
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day
+  ) {
+    return null;
+  }
+
+  const hd = new HDate(date);
+  return { day: hd.getDate(), month: hd.getMonth() };
+}
+
+interface EventSaveData {
+  eventTypeId: number;
+  hebrewDay: number;
+  hebrewMonth: number;
+  civilDate?: string;
+  eventYear?: number;
+  remarks: string;
+  yahrzeitRelationOptionId?: number;
+}
+
 interface EventFormProps {
   eventTypes: EventType[];
+  yahrzeitRelationOptions: YahrzeitRelationOption[];
   initial?: Partial<EventRecord>;
-  onSave: (data: { eventTypeId: number; hebrewDay: number; hebrewMonth: number; remarks: string }) => Promise<void>;
+  onCreateYahrzeitRelationOption: (name: string) => Promise<YahrzeitRelationOption | null>;
+  onSave: (data: EventSaveData) => Promise<void>;
   onCancel: () => void;
 }
 
-function EventForm({ eventTypes, initial, onSave, onCancel }: EventFormProps) {
+function EventForm({ eventTypes, yahrzeitRelationOptions, initial, onCreateYahrzeitRelationOption, onSave, onCancel }: EventFormProps) {
   const [eventTypeId, setEventTypeId] = useState(initial?.eventTypeId ?? eventTypes[0]?.id ?? 0);
   const [hebrewDay, setHebrewDay] = useState(initial?.hebrewDay ?? 1);
   const [hebrewMonth, setHebrewMonth] = useState(initial?.hebrewMonth ?? 7);
+  const [civilDate, setCivilDate] = useState(toDateInputValue(initial?.civilDate));
+  const [eventYear, setEventYear] = useState(
+    initial?.eventYear ? String(initial.eventYear) : ""
+  );
   const [remarks, setRemarks] = useState(initial?.remarks ?? "");
+  const [yahrzeitRelationOptionId, setYahrzeitRelationOptionId] = useState<number | "new" | "">(
+    initial?.yahrzeitRelationOptionId ?? ""
+  );
+  const [newYahrzeitRelationName, setNewYahrzeitRelationName] = useState("");
   const [saving, setSaving] = useState(false);
+
+  const selectedEventType = eventTypes.find((t) => t.id === eventTypeId);
+  const isYahrzeit = selectedEventType?.isYahrzeit;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     try {
-      await onSave({ eventTypeId, hebrewDay, hebrewMonth, remarks });
+      let relationId: number | undefined;
+
+      if (isYahrzeit) {
+        if (yahrzeitRelationOptionId === "new") {
+          if (!newYahrzeitRelationName.trim()) {
+            setSaving(false);
+            return;
+          }
+          const created = await onCreateYahrzeitRelationOption(newYahrzeitRelationName.trim());
+          if (!created) {
+            setSaving(false);
+            return;
+          }
+          relationId = created.id;
+        } else if (typeof yahrzeitRelationOptionId === "number") {
+          relationId = yahrzeitRelationOptionId;
+        }
+      }
+
+      const trimmedYear = eventYear.trim();
+      const parsedEventYear = trimmedYear ? Number(trimmedYear) : undefined;
+
+      if (
+        parsedEventYear !== undefined &&
+        (!Number.isInteger(parsedEventYear) || parsedEventYear < 1 || parsedEventYear > 9999)
+      ) {
+        setSaving(false);
+        return;
+      }
+
+      await onSave({
+        eventTypeId,
+        hebrewDay,
+        hebrewMonth,
+        civilDate: civilDate || undefined,
+        eventYear: parsedEventYear,
+        remarks,
+        yahrzeitRelationOptionId: relationId,
+      });
     } finally {
       setSaving(false);
     }
@@ -71,12 +172,56 @@ function EventForm({ eventTypes, initial, onSave, onCancel }: EventFormProps) {
         className="input"
         style={{ width: "auto" }}
         value={eventTypeId}
-        onChange={(e) => setEventTypeId(Number(e.target.value))}
+        onChange={(e) => {
+          const nextId = Number(e.target.value);
+          const nextType = eventTypes.find((t) => t.id === nextId);
+          if (!nextType?.isYahrzeit) {
+            setYahrzeitRelationOptionId("");
+            setNewYahrzeitRelationName("");
+          }
+          setEventTypeId(nextId);
+        }}
       >
         {eventTypes.map((t) => (
           <option key={t.id} value={t.id}>{t.name}</option>
         ))}
       </select>
+      {isYahrzeit && (
+        <>
+          <select
+            className="input"
+            style={{ width: "auto" }}
+            value={yahrzeitRelationOptionId}
+            onChange={(e) => {
+              const value = e.target.value;
+              if (value === "new") {
+                setYahrzeitRelationOptionId("new");
+                return;
+              }
+              if (!value) {
+                setYahrzeitRelationOptionId("");
+                return;
+              }
+              setYahrzeitRelationOptionId(Number(value));
+            }}
+          >
+            <option value="">Kapcsolat (opcionális)</option>
+            {yahrzeitRelationOptions.map((option) => (
+              <option key={option.id} value={option.id}>{option.name}</option>
+            ))}
+            <option value="new">Egyeb... (uj opcio)</option>
+          </select>
+          {yahrzeitRelationOptionId === "new" && (
+            <input
+              className="input"
+              style={{ width: "180px" }}
+              value={newYahrzeitRelationName}
+              onChange={(e) => setNewYahrzeitRelationName(e.target.value)}
+              placeholder="Uj kapcsolat neve"
+            />
+          )}
+        </>
+      )}
       <select
         className="input"
         style={{ width: "auto" }}
@@ -99,6 +244,35 @@ function EventForm({ eventTypes, initial, onSave, onCancel }: EventFormProps) {
       />
       <input
         className="input"
+        type="date"
+        style={{ width: "170px" }}
+        value={civilDate}
+        onChange={(e) => {
+          const next = e.target.value;
+          setCivilDate(next);
+          const converted = parseCivilDateToHebrew(next);
+          if (converted) {
+            setHebrewDay(converted.day);
+            setHebrewMonth(converted.month);
+          }
+          if (!eventYear.trim() && next) {
+            setEventYear(next.slice(0, 4));
+          }
+        }}
+        placeholder="Civil date"
+      />
+      <input
+        className="input"
+        type="number"
+        style={{ width: "120px" }}
+        min={1}
+        max={9999}
+        value={eventYear}
+        onChange={(e) => setEventYear(e.target.value)}
+        placeholder="Year (optional)"
+      />
+      <input
+        className="input"
         style={{ width: "160px" }}
         value={remarks}
         onChange={(e) => setRemarks(e.target.value)}
@@ -118,10 +292,12 @@ interface PersonRowProps {
   person: Person;
   allTags: Tag[];
   eventTypes: EventType[];
+  yahrzeitRelationOptions: YahrzeitRelationOption[];
+  onCreateYahrzeitRelationOption: (name: string) => Promise<YahrzeitRelationOption | null>;
   onUpdate: () => void;
 }
 
-function PersonRow({ person, allTags, eventTypes, onUpdate }: PersonRowProps) {
+function PersonRow({ person, allTags, eventTypes, yahrzeitRelationOptions, onCreateYahrzeitRelationOption, onUpdate }: PersonRowProps) {
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
   const [displayName, setDisplayName] = useState(person.displayName);
@@ -162,7 +338,7 @@ function PersonRow({ person, allTags, eventTypes, onUpdate }: PersonRowProps) {
     onUpdate();
   };
 
-  const addEvent = async (data: { eventTypeId: number; hebrewDay: number; hebrewMonth: number; remarks: string }) => {
+  const addEvent = async (data: EventSaveData) => {
     await fetch("/api/events", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -172,7 +348,7 @@ function PersonRow({ person, allTags, eventTypes, onUpdate }: PersonRowProps) {
     onUpdate();
   };
 
-  const updateEvent = async (eventId: number, data: { eventTypeId: number; hebrewDay: number; hebrewMonth: number; remarks: string }) => {
+  const updateEvent = async (eventId: number, data: EventSaveData) => {
     await fetch(`/api/events/${eventId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -321,16 +497,31 @@ function PersonRow({ person, allTags, eventTypes, onUpdate }: PersonRowProps) {
                   {editingEventId === ev.id ? (
                     <EventForm
                       eventTypes={eventTypes}
+                      yahrzeitRelationOptions={yahrzeitRelationOptions}
                       initial={ev}
+                      onCreateYahrzeitRelationOption={onCreateYahrzeitRelationOption}
                       onSave={(data) => updateEvent(ev.id, data)}
                       onCancel={() => setEditingEventId(null)}
                     />
                   ) : (
                     <div style={{ display: "flex", gap: "16px", alignItems: "center" }}>
-                      <span className={`badge ${ev.eventType.name === "Yahrzeit" ? "badge-orange" : "badge-green"}`}>
+                      <span className={`badge ${ev.eventType.isYahrzeit ? "badge-orange" : "badge-green"}`}>
                         {ev.eventType.name}
                       </span>
+                      {ev.eventType.isYahrzeit && ev.yahrzeitRelationOption && (
+                        <span className="badge badge-blue">{ev.yahrzeitRelationOption.name}</span>
+                      )}
                       <HebrewDateDisplay day={ev.hebrewDay} month={ev.hebrewMonth} />
+                      {ev.civilDate && (
+                        <span style={{ color: "#6b7280", fontSize: "12px" }}>
+                          {toDateInputValue(ev.civilDate)}
+                        </span>
+                      )}
+                      {ev.eventYear && (
+                        <span style={{ color: "#6b7280", fontSize: "12px" }}>
+                          Year: {ev.eventYear}
+                        </span>
+                      )}
                       {ev.remarks && (
                         <span style={{ color: "#6b7280", fontSize: "12px" }}>{ev.remarks}</span>
                       )}
@@ -348,6 +539,8 @@ function PersonRow({ person, allTags, eventTypes, onUpdate }: PersonRowProps) {
               {addingEvent && (
                 <EventForm
                   eventTypes={eventTypes}
+                  yahrzeitRelationOptions={yahrzeitRelationOptions}
+                  onCreateYahrzeitRelationOption={onCreateYahrzeitRelationOption}
                   onSave={addEvent}
                   onCancel={() => setAddingEvent(false)}
                 />
@@ -449,6 +642,7 @@ export default function PeoplePage() {
   const [people, setPeople] = useState<Person[]>([]);
   const [allTags, setAllTags] = useState<Tag[]>([]);
   const [eventTypes, setEventTypes] = useState<EventType[]>([]);
+  const [yahrzeitRelationOptions, setYahrzeitRelationOptions] = useState<YahrzeitRelationOption[]>([]);
   const [search, setSearch] = useState("");
   const [tagFilter, setTagFilter] = useState("");
   const [missingFilter, setMissingFilter] = useState("");
@@ -464,23 +658,42 @@ export default function PeoplePage() {
       if (tagFilter) params.set("tag", tagFilter);
       if (missingFilter) params.set("missing", missingFilter);
 
-      const [peopleRes, tagsRes, typesRes] = await Promise.all([
+      const [peopleRes, tagsRes, typesRes, yahrzeitRelationsRes] = await Promise.all([
         fetch(`/api/people?${params}`),
         fetch("/api/tags"),
         fetch("/api/event-types"),
+        fetch("/api/yahrzeit-relations"),
       ]);
-      const [peopleData, tagsData, typesData] = await Promise.all([
+      const [peopleData, tagsData, typesData, yahrzeitRelationsData] = await Promise.all([
         peopleRes.json(),
         tagsRes.json(),
         typesRes.json(),
+        yahrzeitRelationsRes.json(),
       ]);
       setPeople(peopleData);
       setAllTags(tagsData);
       setEventTypes(typesData);
+      setYahrzeitRelationOptions(yahrzeitRelationsData);
     } finally {
       setLoading(false);
     }
   }, [search, tagFilter, missingFilter]);
+
+  const createYahrzeitRelationOption = async (name: string): Promise<YahrzeitRelationOption | null> => {
+    if (!name.trim()) return null;
+    const res = await fetch("/api/yahrzeit-relations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: name.trim() }),
+    });
+    if (!res.ok) return null;
+    const option = await res.json();
+    setYahrzeitRelationOptions((prev) => {
+      if (prev.some((p) => p.id === option.id)) return prev;
+      return [...prev, option].sort((a, b) => a.name.localeCompare(b.name));
+    });
+    return option;
+  };
 
   useEffect(() => {
     if (searchTimeout.current) clearTimeout(searchTimeout.current);
@@ -583,6 +796,8 @@ export default function PeoplePage() {
                 person={person}
                 allTags={allTags}
                 eventTypes={eventTypes}
+                yahrzeitRelationOptions={yahrzeitRelationOptions}
+                onCreateYahrzeitRelationOption={createYahrzeitRelationOption}
                 onUpdate={fetchData}
               />
             ))}

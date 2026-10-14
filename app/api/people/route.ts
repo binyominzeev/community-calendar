@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
         missing === "yahrzeit"
           ? {
               NOT: {
-                events: { some: { eventType: { name: "Yahrzeit" } } },
+                events: { some: { eventType: { isYahrzeit: true } } },
               },
             }
           : {},
@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
     },
     include: {
       personTags: { include: { tag: true } },
-      events: { include: { eventType: true } },
+      events: { include: { eventType: true, yahrzeitRelationOption: true } },
     },
     orderBy: { displayName: "asc" },
   });
@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
     },
     include: {
       personTags: { include: { tag: true } },
-      events: { include: { eventType: true } },
+      events: { include: { eventType: true, yahrzeitRelationOption: true } },
     },
   });
 

@@ -2,10 +2,7 @@
  * Database setup script.
  * Applies migrations via better-sqlite3 and runs the seed.
  */
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
-import { PrismaClient } from "../app/generated/prisma/client";
 import Database from "better-sqlite3";
-import bcrypt from "bcryptjs";
 import fs from "fs";
 import path from "path";
 
@@ -61,52 +58,49 @@ function applyMigrations(db: Database.Database) {
   }
 }
 
-async function main() {
-  // Apply migrations via raw SQLite
-  const rawDb = new Database(DB_PATH);
-  rawDb.pragma("foreign_keys = ON");
-  applyMigrations(rawDb);
-  rawDb.close();
-
-  // Now seed via Prisma client
-  const adapter = new PrismaBetterSqlite3({ url: `file:${DB_PATH}` });
-  const prisma = new PrismaClient({ adapter } as ConstructorParameters<typeof PrismaClient>[0]);
-
-  const eventTypes = ["Yahrzeit", "Birthday"];
-  for (const name of eventTypes) {
-    await prisma.eventType.upsert({
-      where: { name },
-      update: {},
-      create: { name },
-    });
+function seed(db: Database.Database) {
+  const yahrzeitNameCandidates = ["Yahrzeit", "Jorcájt", "Jorcajt", "Jorcait"];
+  const designated = db.prepare('SELECT id FROM "EventType" WHERE "isYahrzeit" = 1 LIMIT 1').get();
+  if (!designated) {
+    const placeholders = yahrzeitNameCandidates.map(() => "?").join(",");
+    const matched = db
+      .prepare(`SELECT id FROM "EventType" WHERE "name" IN (${placeholders}) LIMIT 1`)
+      .get(...yahrzeitNameCandidates) as { id: number } | undefined;
+    if (matched) {
+      db.prepare('UPDATE "EventType" SET "isYahrzeit" = 1 WHERE "id" = ?').run(matched.id);
+    } else {
+      db.prepare('INSERT INTO "EventType" ("name", "isYahrzeit") VALUES (?, 1)').run("Jorcajt");
+    }
   }
 
-  const tags = ["NF", "BJ", "Gedolim"];
-  for (const name of tags) {
-    await prisma.tag.upsert({
-      where: { name },
-      update: {},
-      create: { name },
-    });
+  db.prepare('INSERT OR IGNORE INTO "EventType" ("name") VALUES (?)').run("Birthday");
+
+  for (const name of ["Apa", "Anya", "Nagymama", "Nagyapa", "Sajat"]) {
+    db.prepare('INSERT OR IGNORE INTO "YahrzeitRelationOption" ("name") VALUES (?)').run(name);
   }
 
-  const adminEmail = process.env.ADMIN_EMAIL ?? "admin@example.com";
-  const adminPassword = process.env.ADMIN_PASSWORD ?? "changeme";
-  const passwordHash = await bcrypt.hash(adminPassword, 12);
-
-  await prisma.user.upsert({
-    where: { email: adminEmail },
-    update: { passwordHash },
-    create: { email: adminEmail, passwordHash },
-  });
-
-  await prisma.$disconnect();
-
-  console.log("Database setup complete.");
-  console.log(`Admin: ${adminEmail} / ${adminPassword}`);
+  for (const name of ["NF", "BJ", "Gedolim"]) {
+    db.prepare('INSERT OR IGNORE INTO "Tag" ("name") VALUES (?)').run(name);
+  }
 }
 
-main().catch((e) => {
+function main() {
+  const db = new Database(DB_PATH);
+  db.pragma("foreign_keys = ON");
+  applyMigrations(db);
+  seed(db);
+  // A restart kills any running sync, so its lock flag would otherwise stay set.
+  db.prepare(
+    'UPDATE "GoogleAccount" SET "syncInProgress" = 0, "syncStartedAt" = NULL, "syncTotal" = 0, "syncDone" = 0, "syncCurrent" = NULL'
+  ).run();
+  db.close();
+
+  console.log("Database setup complete.");
+}
+
+try {
+  main();
+} catch (e) {
   console.error(e);
   process.exit(1);
-});
+}

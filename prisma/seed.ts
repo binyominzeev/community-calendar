@@ -1,6 +1,5 @@
 import { PrismaClient } from "../app/generated/prisma/client";
 import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
-import bcrypt from "bcryptjs";
 import path from "path";
 
 function createClient() {
@@ -12,10 +11,43 @@ function createClient() {
 const prisma = createClient();
 
 async function main() {
-  // Seed event types
-  const eventTypes = ["Yahrzeit", "Birthday"];
-  for (const name of eventTypes) {
-    await prisma.eventType.upsert({
+  // Ensure there is a designated Yahrzeit/Jorcajt type independent of display name
+  const yahrzeitNameCandidates = ["Yahrzeit", "Jorcájt", "Jorcajt", "Jorcait"];
+  const designatedYahrzeit = await prisma.eventType.findFirst({
+    where: { isYahrzeit: true },
+  });
+  const matchedByName = designatedYahrzeit
+    ? null
+    : await prisma.eventType.findFirst({
+        where: { name: { in: yahrzeitNameCandidates } },
+      });
+
+  if (designatedYahrzeit) {
+    await prisma.eventType.update({
+      where: { id: designatedYahrzeit.id },
+      data: { isYahrzeit: true },
+    });
+  } else if (matchedByName) {
+    await prisma.eventType.update({
+      where: { id: matchedByName.id },
+      data: { isYahrzeit: true },
+    });
+  } else {
+    await prisma.eventType.create({
+      data: { name: "Jorcajt", isYahrzeit: true },
+    });
+  }
+
+  await prisma.eventType.upsert({
+    where: { name: "Birthday" },
+    update: {},
+    create: { name: "Birthday" },
+  });
+
+  // Seed default yahrzeit relation options
+  const yahrzeitRelations = ["Apa", "Anya", "Nagymama", "Nagyapa", "Sajat"];
+  for (const name of yahrzeitRelations) {
+    await prisma.yahrzeitRelationOption.upsert({
       where: { name },
       update: {},
       create: { name },
@@ -32,19 +64,7 @@ async function main() {
     });
   }
 
-  // Seed admin user
-  const adminEmail = process.env.ADMIN_EMAIL ?? "admin@example.com";
-  const adminPassword = process.env.ADMIN_PASSWORD ?? "changeme";
-  const passwordHash = await bcrypt.hash(adminPassword, 12);
-
-  await prisma.user.upsert({
-    where: { email: adminEmail },
-    update: { passwordHash },
-    create: { email: adminEmail, passwordHash },
-  });
-
   console.log("Seed complete.");
-  console.log(`Admin user: ${adminEmail} / ${adminPassword}`);
 }
 
 main()

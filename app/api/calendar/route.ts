@@ -1,54 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
-import { resolveEventsForYear, EventRecord } from "@/lib/hebcal";
+import { buildCalendarItems } from "@/lib/calendar-items";
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const MAX_RANGE_DAYS = 400;
+
+function parseDate(value: string | null): Date | null {
+  if (!value || !DATE_RE.test(value)) return null;
+  const [y, m, d] = value.split("-").map(Number);
+  const date = new Date(y, m - 1, d, 12);
+  return isNaN(date.getTime()) ? null : date;
+}
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
-  const yearParam = searchParams.get("year");
   const tag = searchParams.get("tag") ?? "";
   const typeFilter = searchParams.get("type") ?? "";
+  const from = parseDate(searchParams.get("from"));
+  const to = parseDate(searchParams.get("to"));
 
-  if (!yearParam) {
+  if (!from || !to || to < from) {
     return NextResponse.json(
-      { error: "year parameter is required" },
+      { error: "from and to (YYYY-MM-DD) are required" },
       { status: 400 }
     );
   }
-
-  const hebrewYear = parseInt(yearParam);
-  if (isNaN(hebrewYear) || hebrewYear < 5000 || hebrewYear > 9999) {
-    return NextResponse.json({ error: "Invalid Hebrew year" }, { status: 400 });
+  if ((to.getTime() - from.getTime()) / 86_400_000 > MAX_RANGE_DAYS) {
+    return NextResponse.json({ error: "Range too large" }, { status: 400 });
   }
 
-  const events = await prisma.event.findMany({
-    where: {
-      AND: [
-        tag
-          ? { person: { personTags: { some: { tag: { name: tag } } } } }
-          : {},
-        typeFilter ? { eventType: { name: typeFilter } } : {},
-      ],
-    },
-    include: {
-      eventType: true,
-      person: {
-        include: {
-          personTags: { include: { tag: true } },
-        },
-      },
-    },
-  });
-
-  const resolved = resolveEventsForYear(events as EventRecord[], hebrewYear);
-
-  // Serialize dates to ISO strings for JSON
-  const serialized = resolved.map((e) => ({
-    ...e,
-    gregDate: e.gregDate.toISOString(),
-  }));
-
-  return NextResponse.json({
-    hebrewYear,
-    events: serialized,
-  });
+  const items = await buildCalendarItems(from, to, { tag, type: typeFilter });
+  return NextResponse.json({ items });
 }

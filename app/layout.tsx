@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import Navigation from "@/components/Navigation";
+import Providers from "@/components/Providers";
 
 export const metadata: Metadata = {
   title: "Community Calendar",
@@ -15,10 +16,12 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <Navigation />
-        <main style={{ padding: "24px", maxWidth: "1400px", margin: "0 auto" }}>
-          {children}
-        </main>
+        <Providers>
+          <Navigation />
+          <main style={{ padding: "24px", maxWidth: "1400px", margin: "0 auto" }}>
+            {children}
+          </main>
+        </Providers>
       </body>
     </html>
   );

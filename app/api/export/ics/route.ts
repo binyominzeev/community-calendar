@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
-import { resolveEventsForYear, EventRecord } from "@/lib/hebcal";
+import { buildCalendarItems } from "@/lib/calendar-items";
+import { hebrewYearRange } from "@/lib/hebcal";
 import { createEvents, EventAttributes } from "ics";
 
 export async function GET(req: NextRequest) {
@@ -18,33 +18,15 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Invalid year" }, { status: 400 });
   }
 
-  const dbEvents = await prisma.event.findMany({
-    where: {
-      AND: [
-        tag
-          ? { person: { personTags: { some: { tag: { name: tag } } } } }
-          : {},
-        typeFilter ? { eventType: { name: typeFilter } } : {},
-      ],
-    },
-    include: {
-      eventType: true,
-      person: {
-        include: {
-          personTags: { include: { tag: true } },
-        },
-      },
-    },
-  });
+  const { start, end } = hebrewYearRange(hebrewYear);
+  const items = await buildCalendarItems(start, end, { tag, type: typeFilter });
 
-  const resolved = resolveEventsForYear(dbEvents as EventRecord[], hebrewYear);
-
-  const icsEvents: EventAttributes[] = resolved.map((ev) => {
-    const d = ev.gregDate;
+  const icsEvents: EventAttributes[] = items.map((item) => {
+    const [y, m, d] = item.date.split("-").map(Number);
     return {
-      title: `${ev.eventType}: ${ev.personName}`,
-      description: ev.remarks ?? undefined,
-      start: [d.getFullYear(), d.getMonth() + 1, d.getDate()],
+      title: item.summary,
+      description: item.description,
+      start: [y, m, d],
       duration: { days: 1 },
       productId: "community-calendar",
     };

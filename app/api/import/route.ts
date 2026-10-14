@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { parseHebrewDateString } from "@/lib/hebcal";
+import { triggerSyncAll } from "@/lib/google-sync";
 
 interface ImportRow {
   displayName: string;
@@ -114,5 +115,6 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  triggerSyncAll();
   return NextResponse.json({ results });
 }

@@ -1,24 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
-import {
-  resolveEventsForYear,
-  EventRecord,
-  isLeapYear,
-  getMonthName,
-  HebrewEvent,
-} from "@/lib/hebcal";
+import { HDate } from "@hebcal/core";
+import { buildCalendarItems, CalendarItem } from "@/lib/calendar-items";
+import { hebrewYearRange } from "@/lib/hebcal";
 
 const GREG_MONTHS = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
 ];
 
-function groupByMonth(events: HebrewEvent[]): Map<string, HebrewEvent[]> {
-  const map = new Map<string, HebrewEvent[]>();
-  for (const ev of events) {
-    const key = `${ev.gregDate.getFullYear()}-${ev.gregDate.getMonth()}`;
+function esc(s: string | null | undefined): string {
+  return (s ?? "").replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+}
+
+function groupByMonth(items: CalendarItem[]): Map<string, CalendarItem[]> {
+  const map = new Map<string, CalendarItem[]>();
+  for (const item of items) {
+    const key = item.date.slice(0, 7);
     if (!map.has(key)) map.set(key, []);
-    map.get(key)!.push(ev);
+    map.get(key)!.push(item);
   }
   return map;
 }
@@ -38,45 +37,32 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Invalid year" }, { status: 400 });
   }
 
-  const dbEvents = await prisma.event.findMany({
-    where: {
-      AND: [
-        tag
-          ? { person: { personTags: { some: { tag: { name: tag } } } } }
-          : {},
-        typeFilter ? { eventType: { name: typeFilter } } : {},
-      ],
-    },
-    include: {
-      eventType: true,
-      person: {
-        include: {
-          personTags: { include: { tag: true } },
-        },
-      },
-    },
+  // Every item except the per-day Hebrew date, which would make the table unreadable.
+  const { start, end } = hebrewYearRange(hebrewYear);
+  const items = await buildCalendarItems(start, end, {
+    tag,
+    type: typeFilter,
+    kinds: ["special", "event"],
   });
-
-  const resolved = resolveEventsForYear(dbEvents as EventRecord[], hebrewYear);
-  const leap = isLeapYear(hebrewYear);
-  const grouped = groupByMonth(resolved);
+  const grouped = groupByMonth(items);
 
   const monthSections = Array.from(grouped.entries())
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([key, events]) => {
+    .map(([key, monthItems]) => {
       const [yearStr, monthStr] = key.split("-");
-      const monthName = GREG_MONTHS[parseInt(monthStr)];
-      const rows = events
-        .map(
-          (ev) =>
-            `<tr>
-              <td>${ev.gregDate.getDate()}</td>
-              <td>${getMonthName(ev.month, leap)} ${ev.day}</td>
-              <td>${ev.eventType}</td>
-              <td>${ev.personName}</td>
-              <td>${ev.remarks ?? ""}</td>
-            </tr>`
-        )
+      const monthName = GREG_MONTHS[parseInt(monthStr) - 1];
+      const rows = monthItems
+        .map((item) => {
+          const [y, m, d] = item.date.split("-").map(Number);
+          const hd = new HDate(new Date(y, m - 1, d, 12));
+          return `<tr>
+              <td>${d}</td>
+              <td>${hd.getDate()} ${esc(hd.getMonthName())}</td>
+              <td>${esc(item.eventType ?? "Calendar")}</td>
+              <td>${esc(item.personName ?? item.summary)}</td>
+              <td>${esc(item.remarks)}</td>
+            </tr>`;
+        })
         .join("\n");
 
       return `

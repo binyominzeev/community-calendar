@@ -42,9 +42,7 @@ npm run db:setup
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
-
-**Default admin credentials:** `admin@example.com` / `changeme`
+Open [http://localhost:3000](http://localhost:3000). Login goes through Pocket ID (OIDC).
 
 ### Environment Variables
 
@@ -53,21 +51,54 @@ Create a `.env.local` file:
 ```env
 NEXTAUTH_SECRET=your-secret-key-here
 NEXTAUTH_URL=http://localhost:3000
-ADMIN_EMAIL=admin@example.com
-ADMIN_PASSWORD=your-secure-password
+
+# Pocket ID (register redirect URI: ${NEXTAUTH_URL}/api/auth/callback/pocket-id)
+OIDC_ISSUER=https://auth.binjomin.hu
+OIDC_CLIENT_ID=
+OIDC_CLIENT_SECRET=
+
+# Google Calendar (redirect URI: ${NEXTAUTH_URL}/api/google/callback)
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+# 32 random bytes, base64: openssl rand -base64 32
+GOOGLE_TOKEN_ENCRYPTION_KEY=
 ```
+
+### Google Client ID and Secret
+
+1. Open the [Google Cloud Console](https://console.cloud.google.com/) and create a project (or pick an existing one).
+2. **APIs & Services → Library**: enable **Google Calendar API**.
+3. **APIs & Services → OAuth consent screen** (Google Auth platform): choose *External*, fill in the app name and emails, and add the scope `https://www.googleapis.com/auth/calendar`.
+   - While the app is in *Testing* mode, add your Google accounts under *Test users*, and note that refresh tokens expire after 7 days. Click *Publish app* for permanent tokens (unverified apps show a warning screen, which is fine for personal use).
+4. **APIs & Services → Credentials → Create credentials → OAuth client ID**: type *Web application*, and add this under *Authorized redirect URIs*:
+   - `http://localhost:3000/api/google/callback` (development)
+   - `https://your-domain/api/google/callback` (production, must match `NEXTAUTH_URL`)
+5. Copy the generated **Client ID** and **Client secret** into `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`.
 
 ### Docker Deployment
 
 ```bash
-# Build and start with Docker Compose
 docker compose up -d
-
-# Or with custom admin credentials
-ADMIN_EMAIL=admin@yourdomain.com ADMIN_PASSWORD=secure_password docker compose up -d
 ```
 
 The SQLite database is stored in `./prisma/dev.db` and is persisted via a Docker volume mount.
+
+#### Rebuilding and disk space
+
+Update the running app with:
+
+```bash
+docker compose up -d --build
+```
+
+Each rebuild leaves behind build cache (about 2 GB). It is safe to clear: it only costs a slower next build.
+
+```bash
+docker builder prune -f   # unused build cache only
+docker image prune -f     # old untagged images from previous builds
+```
+
+These commands do not touch running containers, tagged images in use, volumes or `./prisma/dev.db`. Avoid `docker system prune --volumes`, which would delete the volumes of other projects.
 
 ## Data Model
 
@@ -108,7 +139,7 @@ Hebrew date format: `7 Tishrei`, `15 Nisan`, `7 Adar II`, etc.
 
 ### Settings
 
-Go to **Settings** to manage tags and event types.
+Go to **Settings** to manage tags and event types, and to connect Google Calendar. The app keeps a local record of what has been sent to Google, so **Sync now** only sends new, changed and removed events. Use **Full resync** to re-send everything, e.g. after events were edited or deleted directly in Google.
 
 ## Scripts
 
