@@ -17,6 +17,10 @@ export interface CalendarItem {
   remarks?: string | null;
   hebrewDay?: number;
   hebrewMonth?: number;
+  // Date variant flags
+  hasHebrewDate?: boolean; // true if this is a Hebrew calendar date
+  hasGregorianDate?: boolean; // true if the original event had a Gregorian date
+  gregorianDate?: string; // YYYY-MM-DD format, the original Gregorian date if provided
 }
 
 export interface CalendarItemOptions {
@@ -93,6 +97,12 @@ export async function buildCalendarItems(
         const description = [source?.yahrzeitRelationOption?.name, source?.person.hebrewName, ev.remarks]
           .filter(Boolean)
           .join("\n");
+        
+        const hasGregorianDate = !!source?.civilDate;
+        const gregorianDateStr = source?.civilDate 
+          ? dateKey(new Date(source.civilDate))
+          : undefined;
+        
         items.push({
           key: `event:${ev.eventId}:${year}`,
           date: key,
@@ -105,7 +115,32 @@ export async function buildCalendarItems(
           remarks: ev.remarks,
           hebrewDay: ev.day,
           hebrewMonth: ev.month,
+          hasHebrewDate: true,
+          hasGregorianDate: hasGregorianDate,
+          gregorianDate: gregorianDateStr,
         });
+        
+        // If there's a Gregorian date, also add an event entry for that date
+        if (hasGregorianDate && gregorianDateStr && gregorianDateStr !== key) {
+          if (gregorianDateStr >= startKey && gregorianDateStr <= endKey) {
+            items.push({
+              key: `event:${ev.eventId}:${year}:gregorian`,
+              date: gregorianDateStr,
+              summary: `${ev.eventType}: ${ev.personName}`,
+              description: description || undefined,
+              kind: "event",
+              eventType: ev.eventType,
+              personName: ev.personName,
+              isYahrzeit: ev.isYahrzeit,
+              remarks: ev.remarks,
+              hebrewDay: ev.day,
+              hebrewMonth: ev.month,
+              hasHebrewDate: false,
+              hasGregorianDate: true,
+              gregorianDate: gregorianDateStr,
+            });
+          }
+        }
       }
     }
   }

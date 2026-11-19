@@ -78,11 +78,15 @@ export async function POST(req: NextRequest) {
       if (row.eventType?.trim()) {
         // Parse dates: prioritize civilDate, fallback to hebrewDate
         let parsed: { day: number; month: number } | null = null;
+        let civilDate: Date | null = null;
+        let eventYear: number | null = null;
 
         if (row.civilDate?.trim()) {
           const gregorian = parseGregorianDateString(row.civilDate);
           if (gregorian) {
-            const hebrew = gregorianToHebrew(new Date(gregorian.year, gregorian.month - 1, gregorian.day));
+            civilDate = new Date(gregorian.year, gregorian.month - 1, gregorian.day);
+            eventYear = gregorian.year;
+            const hebrew = gregorianToHebrew(civilDate);
             parsed = { day: hebrew.day, month: hebrew.month };
           } else {
             results.push({
@@ -143,6 +147,8 @@ export async function POST(req: NextRequest) {
               eventTypeId: eventType.id,
               hebrewDay: parsed.day,
               hebrewMonth: parsed.month,
+              civilDate: civilDate,
+              eventYear: eventYear,
               remarks: row.remarks?.trim() || null,
             },
           });

@@ -13,6 +13,11 @@ interface CalendarItem {
   personName?: string;
   isYahrzeit?: boolean;
   remarks?: string | null;
+  hebrewDay?: number;
+  hebrewMonth?: number;
+  hasHebrewDate?: boolean;
+  hasGregorianDate?: boolean;
+  gregorianDate?: string;
 }
 
 function ymd(d: Date): string {
@@ -74,7 +79,17 @@ function EventBadge({ ev }: { ev: CalendarItem }) {
       </div>
     );
   }
+  
   const isYahrzeit = ev.isYahrzeit;
+  const hasHebrewDate = ev.hasHebrewDate;
+  
+  // Determine title with both dates if applicable
+  let title = ev.summary;
+  if (ev.remarks) title += ` — ${ev.remarks}`;
+  if (ev.hasGregorianDate && ev.gregorianDate) {
+    title += ` (también en gregoriano: ${ev.gregorianDate})`;
+  }
+  
   return (
     <div
       style={{
@@ -88,10 +103,15 @@ function EventBadge({ ev }: { ev: CalendarItem }) {
         overflow: "hidden",
         textOverflow: "ellipsis",
         cursor: "default",
+        display: "flex",
+        alignItems: "center",
+        gap: "4px",
       }}
-      title={`${ev.summary}${ev.remarks ? ` — ${ev.remarks}` : ""}`}
+      title={title}
     >
-      {isYahrzeit ? "✡ " : "🎂 "}{ev.personName}
+      {isYahrzeit ? "✡ " : "🎂 "}
+      {hasHebrewDate && "🇮🇱 "}
+      {ev.personName}
     </div>
   );
 }
