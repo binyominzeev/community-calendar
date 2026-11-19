@@ -187,15 +187,13 @@ export function parseGregorianDateString(input: string): {
   }
 }
 
-/** Parse a Hebrew date string like "7 Tishrei" → {day, month} */
+/** Parse a Hebrew date string like "7 Tishrei" or "Tishrei 7" (Hungarian format) → {day, month} */
 export function parseHebrewDateString(input: string): {
   day: number;
   month: number;
 } | null {
   const parts = input.trim().split(/\s+/);
   if (parts.length < 2) return null;
-  const day = parseInt(parts[0], 10);
-  const monthStr = parts.slice(1).join(" ").toLowerCase();
 
   const monthMap: Record<string, number> = {
     nisan: 1,
@@ -208,6 +206,7 @@ export function parseHebrewDateString(input: string): {
     elul: 6,
     tishrei: 7,
     tishri: 7,
+    tisri: 7,
     cheshvan: 8,
     marcheshvan: 8,
     kislev: 9,
@@ -221,7 +220,26 @@ export function parseHebrewDateString(input: string): {
     "adar 2": 13,
   };
 
-  const month = monthMap[monthStr];
-  if (!month || isNaN(day)) return null;
-  return { day, month };
+  let day: number | null = null;
+  let month: number | null = null;
+
+  // Try format 1: "7 Tishrei" (day first)
+  const firstAsNumber = parseInt(parts[0], 10);
+  if (!isNaN(firstAsNumber) && firstAsNumber > 0 && firstAsNumber <= 31) {
+    day = firstAsNumber;
+    const monthStr = parts.slice(1).join(" ").toLowerCase();
+    month = monthMap[monthStr];
+    if (month) return { day, month };
+  }
+
+  // Try format 2: "Tishrei 7" (Hungarian format: month first, day last)
+  const lastAsNumber = parseInt(parts[parts.length - 1], 10);
+  if (!isNaN(lastAsNumber) && lastAsNumber > 0 && lastAsNumber <= 31) {
+    day = lastAsNumber;
+    const monthStr = parts.slice(0, -1).join(" ").toLowerCase();
+    month = monthMap[monthStr];
+    if (month) return { day, month };
+  }
+
+  return null;
 }

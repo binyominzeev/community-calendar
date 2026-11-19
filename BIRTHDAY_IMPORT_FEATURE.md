@@ -127,12 +127,18 @@ Enhanced POST handler with:
 - ✗ Empty field → Falls back to Hebrew date if present
 
 ### Hebrew Date Variants Supported
-- "7 Tishrei" → ✓
+- "7 Tishrei" → ✓ (English format: day Month)
+- "Tishrei 7" → ✓ (Hungarian format: Month day)
 - "7 Tishri" → ✓
+- "Tishri 7" → ✓
 - "24 Iyyar" → ✓
+- "Iyyar 24" → ✓
 - "24 Iyar" → ✓
+- "Iyar 24" → ✓
 - "15 Adar" → ✓ (or Adar I in leap years)
+- "Adar 15" → ✓
 - "15 Adar II" → ✓
+- "Adar II 15" → ✓
 
 ### Duplicate Handling
 - Same person + same Hebrew date + same event type = skipped (not error)

@@ -39,19 +39,39 @@ describe("Import date parsing", () => {
   });
 
   describe("parseHebrewDateString", () => {
-    it("should parse Hebrew dates like '7 Tishrei'", () => {
+    it("should parse Hebrew dates like '7 Tishrei' (English format)", () => {
       const result = parseHebrewDateString("7 Tishrei");
       expect(result).toEqual({ day: 7, month: 7 });
     });
 
-    it("should parse 'Iyyar' variant", () => {
+    it("should parse Hungarian format 'Tishrei 7' (Month day)", () => {
+      const result = parseHebrewDateString("Tishrei 7");
+      expect(result).toEqual({ day: 7, month: 7 });
+    });
+
+    it("should parse 'Iyyar' variant (English format)", () => {
       const result = parseHebrewDateString("24 Iyyar");
       expect(result).toEqual({ day: 24, month: 2 });
     });
 
-    it("should parse 'Iyar' variant", () => {
+    it("should parse 'Iyyar' variant (Hungarian format)", () => {
+      const result = parseHebrewDateString("Iyyar 24");
+      expect(result).toEqual({ day: 24, month: 2 });
+    });
+
+    it("should parse 'Iyar' variant (English format)", () => {
       const result = parseHebrewDateString("24 Iyar");
       expect(result).toEqual({ day: 24, month: 2 });
+    });
+
+    it("should parse 'Iyar' variant (Hungarian format)", () => {
+      const result = parseHebrewDateString("Iyar 24");
+      expect(result).toEqual({ day: 24, month: 2 });
+    });
+
+    it("should parse 'Tisri' variant (Hungarian: Tisri 7)", () => {
+      const result = parseHebrewDateString("Tisri 7");
+      expect(result).toEqual({ day: 7, month: 7 });
     });
 
     it("should reject missing month", () => {
@@ -66,6 +86,11 @@ describe("Import date parsing", () => {
 
     it("should reject invalid month name", () => {
       const result = parseHebrewDateString("7 InvalidMonth");
+      expect(result).toBeNull();
+    });
+
+    it("should reject invalid day number in Hungarian format", () => {
+      const result = parseHebrewDateString("Tishrei 32");
       expect(result).toBeNull();
     });
   });
