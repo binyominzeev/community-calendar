@@ -196,34 +196,55 @@ export function parseHebrewDateString(input: string): {
   if (parts.length < 2) return null;
 
   const monthMap: Record<string, number> = {
+    // English and Hungarian variants (English first to avoid duplicates)
     nisan: 1,
+    niszán: 1,
     iyyar: 2,
     iyar: 2,
+    ijár: 2,
     sivan: 3,
+    sziván: 3,
     tamuz: 4,
     tammuz: 4,
+    támuz: 4,
     av: 5,
+    áv: 5,
     elul: 6,
+    elúl: 6,
     tishrei: 7,
     tishri: 7,
     tisri: 7,
+    tiszrí: 7,
     cheshvan: 8,
     marcheshvan: 8,
+    chesván: 8,
     kislev: 9,
+    kiszlév: 9,
     tevet: 10,
+    tévét: 10,
     shvat: 11,
     shevat: 11,
+    svát: 11,
     adar: 12,
+    ádár: 12,
     "adar i": 12,
     "adar 1": 12,
+    "ádár i": 12,
+    "ádár 1": 12,
+    "adar (i)": 12,
+    "ádár (i)": 12,
     "adar ii": 13,
     "adar 2": 13,
+    "ádár ii": 13,
+    "ádár 2": 13,
+    "adar (ii)": 13,
+    "ádár (ii)": 13,
   };
 
   let day: number | null = null;
   let month: number | null = null;
 
-  // Try format 1: "7 Tishrei" (day first)
+  // Try format 1: "7 Tishrei" or "7 Niszán" (day first)
   const firstAsNumber = parseInt(parts[0], 10);
   if (!isNaN(firstAsNumber) && firstAsNumber > 0 && firstAsNumber <= 31) {
     day = firstAsNumber;
@@ -232,7 +253,7 @@ export function parseHebrewDateString(input: string): {
     if (month) return { day, month };
   }
 
-  // Try format 2: "Tishrei 7" (Hungarian format: month first, day last)
+  // Try format 2: "Tishrei 7" or "Niszán 14" (Hungarian format: month first, day last)
   const lastAsNumber = parseInt(parts[parts.length - 1], 10);
   if (!isNaN(lastAsNumber) && lastAsNumber > 0 && lastAsNumber <= 31) {
     day = lastAsNumber;

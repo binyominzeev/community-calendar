@@ -49,6 +49,66 @@ describe("Import date parsing", () => {
       expect(result).toEqual({ day: 7, month: 7 });
     });
 
+    it("should parse Hungarian accented format 'Niszán 14'", () => {
+      const result = parseHebrewDateString("Niszán 14");
+      expect(result).toEqual({ day: 14, month: 1 });
+    });
+
+    it("should parse 'Ádár (I) 22' format", () => {
+      const result = parseHebrewDateString("Ádár (I) 22");
+      expect(result).toEqual({ day: 22, month: 12 });
+    });
+
+    it("should parse 'Ádár (II) 14' format", () => {
+      const result = parseHebrewDateString("Ádár (II) 14");
+      expect(result).toEqual({ day: 14, month: 13 });
+    });
+
+    it("should parse 'Ádár 17' format", () => {
+      const result = parseHebrewDateString("Ádár 17");
+      expect(result).toEqual({ day: 17, month: 12 });
+    });
+
+    it("should parse 'Chesván 13' format (Hungarian accented)", () => {
+      const result = parseHebrewDateString("Chesván 13");
+      expect(result).toEqual({ day: 13, month: 8 });
+    });
+
+    it("should parse 'Ijár 27' format", () => {
+      const result = parseHebrewDateString("Ijár 27");
+      expect(result).toEqual({ day: 27, month: 2 });
+    });
+
+    it("should parse 'Svát 24' format", () => {
+      const result = parseHebrewDateString("Svát 24");
+      expect(result).toEqual({ day: 24, month: 11 });
+    });
+
+    it("should parse 'Sziván 15' format", () => {
+      const result = parseHebrewDateString("Sziván 15");
+      expect(result).toEqual({ day: 15, month: 3 });
+    });
+
+    it("should parse 'Támuz 2' format", () => {
+      const result = parseHebrewDateString("Támuz 2");
+      expect(result).toEqual({ day: 2, month: 4 });
+    });
+
+    it("should parse 'Tévét 11' format", () => {
+      const result = parseHebrewDateString("Tévét 11");
+      expect(result).toEqual({ day: 11, month: 10 });
+    });
+
+    it("should parse 'Kiszlév 10' format", () => {
+      const result = parseHebrewDateString("Kiszlév 10");
+      expect(result).toEqual({ day: 10, month: 9 });
+    });
+
+    it("should parse 'Áv 28' format", () => {
+      const result = parseHebrewDateString("Áv 28");
+      expect(result).toEqual({ day: 28, month: 5 });
+    });
+
     it("should parse 'Iyyar' variant (English format)", () => {
       const result = parseHebrewDateString("24 Iyyar");
       expect(result).toEqual({ day: 24, month: 2 });

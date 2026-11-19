@@ -129,6 +129,19 @@ Enhanced POST handler with:
 ### Hebrew Date Variants Supported
 - "7 Tishrei" → ✓ (English format: day Month)
 - "Tishrei 7" → ✓ (Hungarian format: Month day)
+- "7 Niszán" → ✓ (Hungarian accented)
+- "Niszán 14" → ✓ (Hungarian accented)
+- "Ádár (I) 22" → ✓ (Hungarian Adar I with parentheses)
+- "Ádár (II) 14" → ✓ (Hungarian Adar II with parentheses)
+- "Ádár 17" → ✓ (Hungarian Adar, default I in leap years)
+- "Chesván 13" → ✓ (Hungarian accented)
+- "Ijár 27" → ✓ (Hungarian accented)
+- "Svát 24" → ✓ (Hungarian accented)
+- "Sziván 15" → ✓ (Hungarian accented)
+- "Támuz 2" → ✓ (Hungarian accented)
+- "Tévét 11" → ✓ (Hungarian accented)
+- "Kiszlév 10" → ✓ (Hungarian accented)
+- "Áv 28" → ✓ (Hungarian accented)
 - "7 Tishri" → ✓
 - "Tishri 7" → ✓
 - "24 Iyyar" → ✓
