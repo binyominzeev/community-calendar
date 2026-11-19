@@ -8,6 +8,7 @@ interface ImportRow {
   notes: string;
   tags: string;
   eventType: string;
+  civilDate: string;
   hebrewDate: string;
   remarks: string;
 }
@@ -24,6 +25,7 @@ const COLUMNS: { key: keyof ImportRow; label: string; width: number; placeholder
   { key: "notes", label: "Notes", width: 140, placeholder: "" },
   { key: "tags", label: "Tags (comma sep.)", width: 140, placeholder: "NF, BJ" },
   { key: "eventType", label: "Event Type", width: 100, placeholder: "Yahrzeit" },
+  { key: "civilDate", label: "Gregorian Date (YYYY-MM-DD)", width: 150, placeholder: "2000-01-15" },
   { key: "hebrewDate", label: "Hebrew Date", width: 120, placeholder: "7 Tishrei" },
   { key: "remarks", label: "Remarks", width: 140, placeholder: "" },
 ];
@@ -34,6 +36,7 @@ const EMPTY_ROW: ImportRow = {
   notes: "",
   tags: "",
   eventType: "",
+  civilDate: "",
   hebrewDate: "",
   remarks: "",
 };
@@ -138,7 +141,7 @@ export default function ImportPage() {
         <div>
           <h1 style={{ fontSize: "20px", fontWeight: 700 }}>Import</h1>
           <p style={{ color: "#6b7280", fontSize: "13px", marginTop: "4px" }}>
-            Paste directly from Excel/Google Sheets, or type rows manually. Columns:{" "}
+          Paste directly from Excel/Google Sheets, or type rows manually. Use either Gregorian or Hebrew date (or both).{" "}
             {COLUMNS.map((c) => c.label).join(", ")}
           </p>
         </div>
@@ -175,18 +178,26 @@ export default function ImportPage() {
         }}>
           <strong>{successCount} imported successfully</strong>
           {errorCount > 0 && (
-            <>, <span style={{ color: "#dc2626" }}>{errorCount} errors</span>:</>
+            <>, <span style={{ color: "#dc2626" }}>{errorCount} errors</span></>
           )}
-          {errorCount > 0 && (
-            <ul style={{ margin: "8px 0 0 16px" }}>
-              {results
-                .filter((r) => r.status === "error")
-                .map((r) => (
-                  <li key={r.row} style={{ color: "#dc2626" }}>
-                    Row {r.row + 1}: {r.message}
-                  </li>
-                ))}
-            </ul>
+          {results.some((r) => r.status === "skipped") && (
+            <>, <span style={{ color: "#ea580c" }}>{results.filter((r) => r.status === "skipped").length} skipped (duplicates)</span></>
+          )}
+          {results.some((r) => r.status === "partial") && (
+            <>, <span style={{ color: "#ea580c" }}>{results.filter((r) => r.status === "partial").length} partial</span></>
+          )}
+          {(errorCount > 0 || results.some((r) => r.status === "skipped" || r.status === "partial")) && (
+            <>
+              <ul style={{ margin: "8px 0 0 16px" }}>
+                {results
+                  .filter((r) => r.status === "error" || r.status === "skipped" || r.status === "partial")
+                  .map((r) => (
+                    <li key={r.row} style={{ color: r.status === "error" ? "#dc2626" : "#ea580c" }}>
+                      Row {r.row + 1} ({r.status}): {r.message}
+                    </li>
+                  ))}
+              </ul>
+            </>
           )}
         </div>
       )}
@@ -214,6 +225,8 @@ export default function ImportPage() {
                   ? "#f0fdf4"
                   : result?.status === "error"
                   ? "#fef2f2"
+                  : result?.status === "skipped" || result?.status === "partial"
+                  ? "#fef3c7"
                   : undefined;
               return (
                 <tr key={rowIdx} style={{ background: rowBg }}>
@@ -255,8 +268,8 @@ export default function ImportPage() {
       </div>
 
       <div style={{ marginTop: "12px", fontSize: "12px", color: "#9ca3af" }}>
-        Tip: Copy columns from Excel and paste into this table. Columns will map in order:{" "}
-        {COLUMNS.map((c) => c.label).join(" → ")}
+        <div>Tip: Copy columns from Excel and paste into this table. Columns will map in order: {COLUMNS.map((c) => c.label).join(" → ")}</div>
+        <div style={{ marginTop: "8px" }}>Date format: Gregorian as YYYY-MM-DD (e.g. 2000-01-15) or Hebrew as "day Month" (e.g. 7 Tishrei). Duplicates will be skipped.</div>
       </div>
     </div>
   );

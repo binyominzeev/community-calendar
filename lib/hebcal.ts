@@ -159,6 +159,34 @@ export function hebrewYearRange(hebrewYear: number): { start: Date; end: Date } 
   };
 }
 
+/** Parse a Gregorian date string like "2000-01-15" → {day, month, year} */
+export function parseGregorianDateString(input: string): {
+  day: number;
+  month: number;
+  year: number;
+} | null {
+  const match = input.trim().match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (!match) return null;
+
+  const year = parseInt(match[1], 10);
+  const month = parseInt(match[2], 10);
+  const day = parseInt(match[3], 10);
+
+  if (month < 1 || month > 12 || day < 1 || day > 31) {
+    return null;
+  }
+
+  try {
+    const date = new Date(year, month - 1, day);
+    if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) {
+      return null;
+    }
+    return { day, month, year };
+  } catch {
+    return null;
+  }
+}
+
 /** Parse a Hebrew date string like "7 Tishrei" → {day, month} */
 export function parseHebrewDateString(input: string): {
   day: number;

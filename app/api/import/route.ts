@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { parseHebrewDateString } from "@/lib/hebcal";
+import { parseHebrewDateString, parseGregorianDateString, gregorianToHebrew } from "@/lib/hebcal";
 import { triggerSyncAll } from "@/lib/google-sync";
 
 interface ImportRow {
@@ -9,6 +9,7 @@ interface ImportRow {
   notes?: string;
   tags?: string; // comma-separated tag names
   eventType?: string;
+  civilDate?: string; // "2000-01-15" (YYYY-MM-DD)
   hebrewDate?: string; // e.g. "7 Tishrei"
   remarks?: string;
 }
@@ -74,13 +75,38 @@ export async function POST(req: NextRequest) {
       }
 
       // Handle event
-      if (row.eventType?.trim() && row.hebrewDate?.trim()) {
-        const parsed = parseHebrewDateString(row.hebrewDate);
-        if (!parsed) {
+      if (row.eventType?.trim()) {
+        // Parse dates: prioritize civilDate, fallback to hebrewDate
+        let parsed: { day: number; month: number } | null = null;
+
+        if (row.civilDate?.trim()) {
+          const gregorian = parseGregorianDateString(row.civilDate);
+          if (gregorian) {
+            const hebrew = gregorianToHebrew(new Date(gregorian.year, gregorian.month - 1, gregorian.day));
+            parsed = { day: hebrew.day, month: hebrew.month };
+          } else {
+            results.push({
+              row: i,
+              status: "partial",
+              message: `Person created but invalid Gregorian date: ${row.civilDate}`,
+            });
+            continue;
+          }
+        } else if (row.hebrewDate?.trim()) {
+          parsed = parseHebrewDateString(row.hebrewDate);
+          if (!parsed) {
+            results.push({
+              row: i,
+              status: "partial",
+              message: `Person created but invalid Hebrew date: ${row.hebrewDate}`,
+            });
+            continue;
+          }
+        } else {
           results.push({
             row: i,
             status: "partial",
-            message: `Person created but invalid Hebrew date: ${row.hebrewDate}`,
+            message: `Person created but no valid date provided (need Gregorian YYYY-MM-DD or Hebrew "day Month")`,
           });
           continue;
         }
@@ -94,18 +120,37 @@ export async function POST(req: NextRequest) {
           });
         }
 
-        await prisma.event.create({
-          data: {
+        // Check for duplicate event
+        const existingEvent = await prisma.event.findFirst({
+          where: {
             personId: person.id,
-            eventTypeId: eventType.id,
             hebrewDay: parsed.day,
             hebrewMonth: parsed.month,
-            remarks: row.remarks?.trim() || null,
+            eventTypeId: eventType.id,
           },
         });
-      }
 
-      results.push({ row: i, status: "ok" });
+        if (existingEvent) {
+          results.push({
+            row: i,
+            status: "skipped",
+            message: `Event already exists for ${person.displayName}`,
+          });
+        } else {
+          await prisma.event.create({
+            data: {
+              personId: person.id,
+              eventTypeId: eventType.id,
+              hebrewDay: parsed.day,
+              hebrewMonth: parsed.month,
+              remarks: row.remarks?.trim() || null,
+            },
+          });
+          results.push({ row: i, status: "ok" });
+        }
+      } else {
+        results.push({ row: i, status: "ok" });
+      }
     } catch (err) {
       results.push({
         row: i,
