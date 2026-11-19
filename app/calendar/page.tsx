@@ -83,11 +83,25 @@ function EventBadge({ ev }: { ev: CalendarItem }) {
   const isYahrzeit = ev.isYahrzeit;
   const hasHebrewDate = ev.hasHebrewDate;
   
-  // Determine title with both dates if applicable
+  // Build detailed tooltip
   let title = ev.summary;
   if (ev.remarks) title += ` — ${ev.remarks}`;
-  if (ev.hasGregorianDate && ev.gregorianDate) {
-    title += ` (también en gregoriano: ${ev.gregorianDate})`;
+  
+  // Add date information to tooltip
+  if (hasHebrewDate && ev.hebrewDay && ev.hebrewMonth) {
+    // This is a Hebrew date - show Hebrew calendar info
+    const hebrewMonthName = HEBREW_MONTHS[ev.hebrewMonth] || `Month ${ev.hebrewMonth}`;
+    title += `\nHebrew: ${ev.hebrewDay} ${hebrewMonthName}`;
+  } else if (!hasHebrewDate && ev.gregorianDate) {
+    // This is a Gregorian date - show age calculation if we have a year
+    const [year, month, day] = ev.gregorianDate.split("-").map(Number);
+    const today = new Date();
+    const currentYear = today.getFullYear();
+    const age = currentYear - year;
+    title += `\nGregorian: ${day}/${month}/${year}`;
+    if (age > 0) {
+      title += ` (${age} years old)`;
+    }
   }
   
   return (

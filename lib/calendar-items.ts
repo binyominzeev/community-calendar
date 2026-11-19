@@ -89,6 +89,47 @@ export async function buildCalendarItems(
     const sourceById = new Map(dbEvents.map((e) => [e.id, e]));
     const firstYear = new HDate(start).getFullYear();
     const lastYear = new HDate(end).getFullYear();
+    
+    for (const source of dbEvents) {
+      const description = [source.yahrzeitRelationOption?.name, source.person.hebrewName, source.remarks]
+        .filter(Boolean)
+        .join("\n");
+      
+      const hasGregorianDate = !!source.civilDate;
+      const gregorianDateStr = source.civilDate 
+        ? dateKey(new Date(source.civilDate))
+        : undefined;
+      
+      // If there's a Gregorian date with a year, create entries for each year
+      if (hasGregorianDate && gregorianDateStr && source.eventYear) {
+        for (let year = firstYear; year <= lastYear; year++) {
+          // For Gregorian dates, use the same month/day each year, only year changes
+          const [origYear, month, day] = gregorianDateStr.split("-").map(Number);
+          const thisYearGregorianStr = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+          
+          if (thisYearGregorianStr >= startKey && thisYearGregorianStr <= endKey) {
+            items.push({
+              key: `event:${source.id}:${year}:gregorian`,
+              date: thisYearGregorianStr,
+              summary: `${source.eventType.name}: ${source.person.displayName}`,
+              description: description || undefined,
+              kind: "event",
+              eventType: source.eventType.name,
+              personName: source.person.displayName,
+              isYahrzeit: source.eventType.isYahrzeit,
+              remarks: source.remarks,
+              hebrewDay: source.hebrewDay,
+              hebrewMonth: source.hebrewMonth,
+              hasHebrewDate: false,
+              hasGregorianDate: true,
+              gregorianDate: thisYearGregorianStr,
+            });
+          }
+        }
+      }
+    }
+    
+    // Now add Hebrew date entries (like before)
     for (let year = firstYear; year <= lastYear; year++) {
       for (const ev of resolveEventsForYear(dbEvents as EventRecord[], year)) {
         const key = dateKey(ev.gregDate);
@@ -99,9 +140,6 @@ export async function buildCalendarItems(
           .join("\n");
         
         const hasGregorianDate = !!source?.civilDate;
-        const gregorianDateStr = source?.civilDate 
-          ? dateKey(new Date(source.civilDate))
-          : undefined;
         
         items.push({
           key: `event:${ev.eventId}:${year}`,
@@ -117,30 +155,8 @@ export async function buildCalendarItems(
           hebrewMonth: ev.month,
           hasHebrewDate: true,
           hasGregorianDate: hasGregorianDate,
-          gregorianDate: gregorianDateStr,
+          gregorianDate: source?.civilDate ? dateKey(new Date(source.civilDate)) : undefined,
         });
-        
-        // If there's a Gregorian date, also add an event entry for that date
-        if (hasGregorianDate && gregorianDateStr && gregorianDateStr !== key) {
-          if (gregorianDateStr >= startKey && gregorianDateStr <= endKey) {
-            items.push({
-              key: `event:${ev.eventId}:${year}:gregorian`,
-              date: gregorianDateStr,
-              summary: `${ev.eventType}: ${ev.personName}`,
-              description: description || undefined,
-              kind: "event",
-              eventType: ev.eventType,
-              personName: ev.personName,
-              isYahrzeit: ev.isYahrzeit,
-              remarks: ev.remarks,
-              hebrewDay: ev.day,
-              hebrewMonth: ev.month,
-              hasHebrewDate: false,
-              hasGregorianDate: true,
-              gregorianDate: gregorianDateStr,
-            });
-          }
-        }
       }
     }
   }
