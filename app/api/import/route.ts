@@ -135,11 +135,28 @@ export async function POST(req: NextRequest) {
         });
 
         if (existingEvent) {
-          results.push({
-            row: i,
-            status: "skipped",
-            message: `Event already exists for ${person.displayName}`,
-          });
+          // If we have new data (civilDate/eventYear), update the existing event
+          if (civilDate || eventYear) {
+            await prisma.event.update({
+              where: { id: existingEvent.id },
+              data: {
+                civilDate: civilDate || existingEvent.civilDate,
+                eventYear: eventYear || existingEvent.eventYear,
+              },
+            });
+            results.push({
+              row: i,
+              status: "ok",
+              message: `Event updated for ${person.displayName}`,
+            });
+          } else {
+            // No new data to merge, just skip
+            results.push({
+              row: i,
+              status: "skipped",
+              message: `Event already exists for ${person.displayName}`,
+            });
+          }
         } else {
           await prisma.event.create({
             data: {
